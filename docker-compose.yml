@@ -1,113 +1,56 @@
-version: '3.8'
+version: '3.7'
+
 services:
-  db1:
-    image: mariadb:10.2
-    container_name: db1
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: mimic_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
-    volumes:
-      - db1_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  db2:
-    image: mariadb:10.3
-    container_name: db2
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: mimic_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
-    volumes:
-      - db2_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  db3:
-    image: mysql:5.7
-    container_name: db3
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: mimic_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
-    volumes:
-      - db3_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  s1:
-    container_name: s1
-    build:
-      context: ./server/server1
-    environment:
-      - SERVER_NAME=Server 1
-      - DB_HOST=db1
-      - DB_NAME=mimic_db
-      - DB_USER=user
-      - DB_PASSWORD=password
-    ports:
-      - 8001:80
-    volumes:
-      - ./server/src:/var/www/html
-    depends_on:
-      - db1
-
-  s2:
-    container_name: s2
-    build:
-      context: ./server/server2
-    environment:
-      - SERVER_NAME=Server 2
-      - DB_HOST=db2
-      - DB_NAME=mimic_db
-      - DB_USER=user
-      - DB_PASSWORD=password
-    ports:
-      - 8002:80
-    volumes:
-      - ./server/src:/var/www/html
-    depends_on:
-      - db2
-
-  s3:
-    container_name: s3
-    build:
-      context: ./server/server3
-    environment:
-      - SERVER_NAME=Server 3
-      - DB_HOST=db3
-      - DB_NAME=mimic_db
-      - DB_USER=user
-      - DB_PASSWORD=password
-    ports:
-      - 8003:80
-    volumes:
-      - ./server/src:/var/www/html
-    depends_on:
-      - db3
-
-  waf:
-    container_name: waf
-    build:
-      context: ./waf
-    ports:
-      - 8080:80
-      - 9090:9090
-
   arbitrator:
+    build: ./arbitrator
     container_name: arbitrator
-    build:
-      context: ./arbitrator
     ports:
-      - 8880:80
+      - "80:80"
     depends_on:
-      - waf
       - s1
       - s2
       - s3
+      - waf
 
-volumes:
-  db1_data:
-  db2_data:
-  db3_data:
+  waf:
+    build: ./waf
+    container_name: waf
+    ports:
+      - "8080:80"
+      - "9090:9090"
+
+  s1:
+    build:
+      context: .
+      dockerfile: server/server1/Dockerfile
+    container_name: s1
+    environment:
+      - HTTP_SERVER=apache
+      - PHP_VERSION=7.0.5
+      - DB_VERSION=10.2.14
+    ports:
+      - "8081:80"
+
+  s2:
+    build:
+      context: .
+      dockerfile: server/server2/Dockerfile
+    container_name: s2
+    environment:
+      - HTTP_SERVER=caddy
+      - PHP_VERSION=7.3.13
+      - DB_VERSION=10.3.27
+    ports:
+      - "8082:80"
+
+  s3:
+    build:
+      context: .
+      dockerfile: server/server3/Dockerfile
+    container_name: s3
+    environment:
+      - HTTP_SERVER=nginx
+      - PHP_VERSION=7.2.5
+      - DB_VERSION=5.7.33
+    ports:
+      - "8083:80"

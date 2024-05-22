@@ -10,13 +10,12 @@ SERVERS = [
     "http://s3:80"
 ]
 
-WAF_URL = "http://waf:80"
 WAF_RULE_URL = "http://waf:9090"
 
 class Arbitrator:
     @staticmethod
     def is_attack_detected(responses):
-        # So sánh các phần nội dung chính (body) của phản hồi từ các máy chủ khác nhau
+        # Compare the main parts (body) of the responses from different servers
         bodies = [response.text for response in responses]
         for i in range(len(bodies) - 1):
             for j in range(i + 1, len(bodies)):
@@ -31,7 +30,7 @@ class Arbitrator:
     @staticmethod
     def create_waf_rule(detected_pattern):
         print(f"Creating WAF rule to block detected pattern: {detected_pattern}")
-        waf_rule = f'SecRule ARGS "{detected_pattern}" "deny,status:403,id:1000,msg:\'Detected Attack Pattern\'"\n'
+        waf_rule = f'SecRule ARGS "{detected_pattern}" "deny,status:403,id:1000,msg:\'Detected Attack Pattern\'"'
         response = requests.post(WAF_RULE_URL, data=waf_rule.encode('utf-8'))
         if response.status_code == 200:
             print("WAF rule successfully created and applied.")
@@ -40,7 +39,7 @@ class Arbitrator:
 
     @staticmethod
     def detect_attack_pattern(responses):
-        # Phát hiện mẫu tấn công từ các phản hồi
+        # Detect attack patterns from the responses
         attack_patterns = ["UNION SELECT", "<script>", "DROP TABLE", "OR '1'='1"]
         bodies = [response.text for response in responses]
         for pattern in attack_patterns:
@@ -52,19 +51,14 @@ class Arbitrator:
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
 def proxy(path):
-    global WAF_URL, SERVERS
+    global WAF_RULE_URL, SERVERS
 
     method = request.method
     data = request.get_data()
     headers = {key: value for key, value in request.headers if key != 'Host'}
 
-    waf_response = requests.request(method, f"{WAF_URL}/{path}", headers=headers, data=data, params=request.args)
-
-    if waf_response.status_code == 403:
-        return waf_response.text, 403
-
     selected_servers = random.sample(SERVERS, 3)
-    responses = [waf_response]
+    responses = []
 
     for server in selected_servers:
         response = requests.request(method, f"{server}/{path}", headers=headers, data=data, params=request.args)
